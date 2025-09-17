@@ -355,6 +355,7 @@ FEATURES:
     - Multithreading for better performance
     - Colorized output
     - JSON output option
+    - Output to file
 
 RISK LEVELS:
     - Low: Reflection with simple payload
@@ -378,10 +379,14 @@ USAGE:
     # JSON output
     python main.py -f urls.txt --json
 
+    # Output to file
+    python main.py -f urls.txt -o results.json
+
 EXAMPLES:
     python main.py -f targets.txt --threads 15 -t 30
     echo "https://vuln-site.com/?search=test" | python main.py --no-color
     python main.py -f urls.txt --json
+    python main.py -f urls.txt -o results.json
     """
     print(help_text)
 
@@ -395,6 +400,7 @@ Examples:
   echo "https://example.com/?param=value" | python main.py
   python main.py -u "https://site.com/?id=123" --threads 20
   python main.py -f urls.txt --json
+  python main.py -f urls.txt -o results.json
         """
     )
 
@@ -409,7 +415,8 @@ Examples:
     parser.add_argument('--no-color', action='store_true', help='Disable colorization')
     parser.add_argument('--help-detailed', action='store_true', help='Show detailed help')
     parser.add_argument('--json', action='store_true', help='Output results as JSON (disables text output)')
-    
+    parser.add_argument('-o', '--output', help='Write results to file (JSON format, no log metadata)')
+
     args = parser.parse_args()
     
     # Show detailed help if requested
@@ -440,14 +447,14 @@ Examples:
     
     # Create and configure the scanner
     scanner = ReflectedParamsScanner(
-        use_colors=not args.no_color and not args.json,
+        use_colors=not args.no_color and not args.json and not args.output,
         timeout=args.timeout,
         max_workers=args.threads,
-        json_output=args.json
+        json_output=args.json 
     )
     
     # Banner
-    if not args.no_color and not args.json:
+    if not args.no_color and not args.json and not args.output:
         print(f"{Fore.CYAN}{'='*50}")
         print(f"{Fore.CYAN}REFLECTED PARAMETERS SCANNER v1.0")
         print(f"{Fore.CYAN}{'='*50}{Style.RESET_ALL}")
@@ -457,8 +464,20 @@ Examples:
     # Scan the URLs
     results = scanner.scan_urls(urls)
     
-    # Display the results
-    if args.json:
+    # Output the results
+    if args.output:
+        try:
+            with open(args.output, "w", encoding="utf-8") as f:
+                if args.json:
+                    f.write(scanner.results_to_json(results))
+                else:
+                    #f.write(scanner.display_results(results))
+                    pass
+            # No log metadata in file, only results
+        except Exception as e:
+            print(f"[ERROR] Failed to write results to {args.output}: {e}")
+            sys.exit(1)
+    elif args.json:
         print(scanner.results_to_json(results))
     else:
         scanner.display_results(results)
@@ -467,7 +486,7 @@ Examples:
     end_time = time.time()
     duration = end_time - start_time
 
-    if not args.json:
+    if not args.json and not args.output:
         scanner.print_colored(f"\n[INFO] Scan finished in {duration:.2f}s", Fore.GREEN)
         scanner.print_colored(f"[INFO] {len(results)} reflection(s) detected", Fore.GREEN)
 
